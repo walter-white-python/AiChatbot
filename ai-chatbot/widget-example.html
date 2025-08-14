@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script type="text/javascript">
+  // This is a CodeSandbox injection script that's used to
+  // add navigation and inspector functionality to the preview
+  (function () {
+    // 1) Get the <script> tag that's currently running:
+    var me = document.currentScript;
+
+    // 2) Create the blocking‐style <script> to load:
+    var script = document.createElement("script");
+    script.src = "https://codesandbox.io/p/preview-protocol.js";
+
+    // By default a dynamically‐inserted <script> is async=true.
+    // Turn async off to make it behave like a normal blocking <script>:
+    script.async = false;
+    // (Do NOT set defer.)
+
+    // 3) Insert it immediately after the current <script>:
+    me.parentNode.insertBefore(script, me);
+  })();
+
+  const isIFramePreview = window.top !== window.self;
+
+  // Only run this script in editor context
+  if (isIFramePreview) {
+    // This script is used to enable Chrome DevTools functionality
+    (function () {
+      var script = document.createElement("script");
+      script.src =
+        "https://codesandbox.io/p/chrome-devtool/protocol/index.js";
+
+      script.onload = () => {
+        const devtoolProtocol = window.chobitsu;
+        if (devtoolProtocol) {
+          window.addEventListener("message", (event) => {
+            const { type, data } = event.data;
+
+            if (type === "FROM_DEVTOOL") {
+              devtoolProtocol.sendRawMessage(data);
+            }
+          });
+
+          devtoolProtocol.setOnMessage((data) => {
+            if (data.includes('"id":"tmp')) {
+              return;
+            }
+
+            window.parent.postMessage({ type: "TO_DEVTOOL", data }, "*");
+          });
+
+          devtoolProtocol.sendRawMessage(
+            `{"id":5,"method":"Runtime.enable","params":{}}`
+          );
+        }        
+      }
+
+      (document.head || document.documentElement).prepend(script);
+    })();
+  }
+
+  if (typeof __REACT_DEVTOOLS_GLOBAL_HOOK__ === "undefined") {
+    let nextID = 0;
+    let hook = (__REACT_DEVTOOLS_GLOBAL_HOOK__ = {
+      renderers: new Map(),
+      supportsFiber: true,
+      inject: (renderer) => {
+        const id = nextID++;
+        hook.renderers.set(id, renderer);
+        return id;
+      },
+      onScheduleFiberRoot() {},
+      onCommitFiberRoot() {},
+      onCommitFiberUnmount() {},
+    });
+  }
+
+  document.currentScript.remove();
+</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Chatbot Widget Example</title>
+    <style>
+        /* Your existing website styles here */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        .demo-content {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        /* CHATBOT WIDGET STYLES - Copy everything below to your website */
+        .ai-chat-widget {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            z-index: 2147483647;
+        }
+
+        .chat-toggle-btn {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .chat-toggle-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 25px rgba(0,0,0,0.3);
+        }
+
+        .chat-modal {
+            position: fixed;
+            bottom: 90px;
+            right: 20px;
+            width: 380px;
+            height: 580px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+            display: none;
+            overflow: hidden;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transform: translateY(20px);
+            opacity: 0;
+        }
+
+        .chat-modal.open {
+            display: block;
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .chat-modal iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        /* Mobile responsive */
+        @media (max-width: 768px) {
+            .chat-modal {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                width: 100%;
+                height: 100%;
+                border-radius: 0;
+                bottom: 0;
+                right: 0;
+            }
+        }
+
+        /* Notification badge */
+        .chat-notification {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            width: 20px;
+            height: 20px;
+            background: #ff4757;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+
+        /* Loading indicator */
+        .chat-loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: none;
+        }
+
+        .chat-loading.show {
+            display: block;
+        }
+
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <!-- Your existing website content -->
+    <div class="demo-content">
+        <h1>🎉 AI Chatbot Widget Demo</h1>
+        <p>This is your existing website content. The AI chatbot widget will appear as a floating button in the bottom-right corner.</p>
+        
+        <h2>Features:</h2>
+        <ul>
+            <li>✨ Floating chat button</li>
+            <li>📱 Mobile responsive</li>
+            <li>🎨 Smooth animations</li>
+            <li>🔌 Easy to embed</li>
+            <li>🎯 Customizable styling</li>
+        </ul>
+
+        <h2>How to use:</h2>
+        <ol>
+            <li>Click the chat button in the bottom-right corner</li>
+            <li>Start chatting with the AI assistant</li>
+            <li>Copy the widget code to your own website</li>
+        </ol>
+
+        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+            <h3>🚀 Quick Setup:</h3>
+            <p><strong>1.</strong> Replace <code>YOUR_CHATBOT_URL</code> in the iframe src below</p>
+            <p><strong>2.</strong> Copy the HTML and CSS to your website</p>
+            <p><strong>3.</strong> Customize colors and positioning as needed</p>
+        </div>
+    </div>
+
+    <!-- AI CHATBOT WIDGET - Copy this entire section to your website -->
+    <div class="ai-chat-widget">
+        <!-- Chat toggle button -->
+        <button id="chatToggle" class="chat-toggle-btn" onclick="toggleChat()">
+            <svg id="chatIcon" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/>
+            </svg>
+            <svg id="closeIcon" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" style="display: none;">
+                <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+            </svg>
+        </button>
+
+        <!-- Optional notification badge -->
+        <div class="chat-notification" id="chatNotification" style="display: none;">1</div>
+
+        <!-- Chat modal -->
+        <div id="chatModal" class="chat-modal">
+            <!-- Loading indicator -->
+            <div class="chat-loading" id="chatLoading">
+                <div class="loading-spinner"></div>
+            </div>
+            
+            <!-- Replace YOUR_CHATBOT_URL with your actual deployed chatbot URL -->
+            <iframe 
+                src="https://ai-chatbot-fb34c8fc.scout.site" 
+                loading="lazy"
+                onload="hideLoading()">
+            </iframe>
+        </div>
+    </div>
+
+    <script>
+        // CHATBOT WIDGET JAVASCRIPT - Copy this script to your website
+        let isChatOpen = false;
+        let chatLoaded = false;
+
+        function toggleChat() {
+            const modal = document.getElementById('chatModal');
+            const toggle = document.getElementById('chatToggle');
+            const chatIcon = document.getElementById('chatIcon');
+            const closeIcon = document.getElementById('closeIcon');
+            const notification = document.getElementById('chatNotification');
+
+            if (isChatOpen) {
+                // Close chat
+                modal.classList.remove('open');
+                chatIcon.style.display = 'block';
+                closeIcon.style.display = 'none';
+                isChatOpen = false;
+            } else {
+                // Open chat
+                modal.classList.add('open');
+                chatIcon.style.display = 'none';
+                closeIcon.style.display = 'block';
+                isChatOpen = true;
+                
+                // Hide notification badge
+                notification.style.display = 'none';
+                
+                // Show loading if not loaded yet
+                if (!chatLoaded) {
+                    showLoading();
+                }
+            }
+        }
+
+        function showLoading() {
+            document.getElementById('chatLoading').classList.add('show');
+        }
+
+        function hideLoading() {
+            document.getElementById('chatLoading').classList.remove('show');
+            chatLoaded = true;
+        }
+
+        // Close chat when clicking outside (optional)
+        document.addEventListener('click', function(event) {
+            const widget = document.querySelector('.ai-chat-widget');
+            if (isChatOpen && !widget.contains(event.target)) {
+                toggleChat();
+            }
+        });
+
+        // Handle escape key (optional)
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape' && isChatOpen) {
+                toggleChat();
+            }
+        });
+
+        // Show notification badge after a delay (optional)
+        setTimeout(() => {
+            document.getElementById('chatNotification').style.display = 'flex';
+        }, 5000);
+
+        // Responsive handling
+        function handleResize() {
+            const modal = document.getElementById('chatModal');
+            if (window.innerWidth <= 768) {
+                modal.style.cssText = modal.style.cssText.replace(/width: 380px/, 'width: 100%');
+                modal.style.cssText = modal.style.cssText.replace(/height: 580px/, 'height: 100%');
+            }
+        }
+
+        window.addEventListener('resize', handleResize);
+        handleResize();
+    </script>
+
+    <!-- Optional: Add custom styling for your brand -->
+    <style>
+        /* CUSTOM BRANDING - Modify these to match your website */
+        .chat-toggle-btn {
+            /* Change gradient colors to match your brand */
+            background: linear-gradient(135deg, #your-color-1, #your-color-2) !important;
+        }
+
+        .chat-notification {
+            /* Change notification color */
+            background: #your-accent-color !important;
+        }
+
+        /* Dark mode support (optional) */
+        @media (prefers-color-scheme: dark) {
+            .chat-modal {
+                background: #1a1a1a;
+                border: 1px solid #333;
+            }
+        }
+    </style>
+</body>
+</html>
